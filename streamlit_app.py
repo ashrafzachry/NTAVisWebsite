@@ -1,51 +1,107 @@
-# streamlit_app.py (Template-style)
+# streamlit_app.py
 import streamlit as st
+import streamlit.components.v1 as components
 import sqlite3
 import pandas as pd
 
-# ---------------------------
-# PAGE SETUP
-# ---------------------------
-st.set_page_config(
-    page_title="Network Traffic Dashboard",
-    page_icon="🌐",
-    layout="wide",
-)
-
-st.title("🌐 Network Traffic Dashboard")
-st.caption("Real-Time Packet Capture & Analysis (FYP Project)")
+# Page setup
+st.set_page_config(page_title="NTAVis Project", layout="wide")
 
 # ---------------------------
-# CONNECT TO DATABASE SAFELY
+# STATE TO SWITCH PAGES
 # ---------------------------
-DB_PATH = "packets.db"
-try:
+if "page" not in st.session_state:
+    st.session_state.page = "landing"
+
+# ---------------------------
+# LANDING PAGE HTML
+# ---------------------------
+landing_html = """
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container">
+    <a class="navbar-brand" href="#">NTAVis</a>
+    <div class="collapse navbar-collapse">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="#">Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
+        <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+        <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+<header class="bg-primary text-white text-center py-5">
+  <div class="container">
+    <h1>Network Traffic Analysis & Visualization (NTAVis)</h1>
+    <p class="lead">Real-time threat detection, visualization, and alerting system</p>
+  </div>
+</header>
+<section id="about" class="py-5">
+  <div class="container">
+    <h2>About the Project</h2>
+    <p>
+      NTAVis is a real-time network traffic analysis and visualization tool that detects threats using an Intrusion Detection System (IDS) and sends instant alerts via Telegram. It captures network packets, analyzes them for suspicious activity, and displays results on an interactive dashboard.
+    </p>
+  </div>
+</section>
+<section id="features" class="py-5 bg-light">
+  <div class="container">
+    <h2>Features</h2>
+    <ul>
+      <li>Real-time packet capture and analysis</li>
+      <li>Threat detection (Malformed, UDP Flood, Suspicious, SYN Flood)</li>
+      <li>Interactive dashboard for data visualization</li>
+      <li>Instant Telegram alerts for detected threats</li>
+      <li>Geo-mapping of threat sources</li>
+    </ul>
+  </div>
+</section>
+<section id="contact" class="py-5">
+  <div class="container">
+    <h2>Contact</h2>
+    <p>For more information, contact: <a href="mailto:hadifshah177@gmail.com">hadifshah177@gmail.com</a></p>
+  </div>
+</section>
+<footer class="bg-dark text-white text-center py-3">
+  <div class="container">
+    &copy; 2025 NTAVis Project
+  </div>
+</footer>
+"""
+
+# ---------------------------
+# SHOW LANDING PAGE
+# ---------------------------
+if st.session_state.page == "landing":
+    components.html(landing_html, height=1000, scrolling=True)
+    
+    if st.button("Go to Dashboard"):
+        st.session_state.page = "dashboard"
+        st.experimental_rerun()
+
+# ---------------------------
+# DASHBOARD PAGE
+# ---------------------------
+if st.session_state.page == "dashboard":
+    st.title("🌐 Network Traffic Dashboard")
+    st.caption("Real-Time Packet Capture & Analysis (FYP Project)")
+
+    # Connect to SQLite database
+    DB_PATH = "packets.db"
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM packets", conn)
+    try:
+        df = pd.read_sql_query("SELECT * FROM packets", conn)
+    except Exception:
+        df = pd.DataFrame(columns=["id","src_ip","dst_ip","protocol","size","timestamp","threat_type"])
     conn.close()
-except Exception:
-    df = pd.DataFrame(columns=["id","src_ip","dst_ip","protocol","size","timestamp","threat_type"])
 
-# ---------------------------
-# HANDLE EMPTY DATABASE
-# ---------------------------
-if df.empty:
-    st.warning(
-        "No packet data available yet. "
-        "You can run `capture.py` or `insert_packets.py` locally to add sample data."
-    )
-else:
-    # ---------------------------
-    # METRICS
-    # ---------------------------
+    # Show metrics
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Packets", len(df))
     col2.metric("Unique Source IPs", df["src_ip"].nunique())
     col3.metric("Unique Dest IPs", df["dst_ip"].nunique())
 
-    # ---------------------------
-    # TABS
-    # ---------------------------
+    # Tabs for analysis
     tab1, tab2, tab3 = st.tabs(["📊 Overview", "📁 Raw Data", "🔍 Filters"])
 
     # Tab 1: Overview charts
@@ -58,7 +114,7 @@ else:
         top_src = df["src_ip"].value_counts().head(10)
         st.bar_chart(top_src)
 
-    # Tab 2: Raw Data
+    # Tab 2: Raw data
     with tab2:
         st.subheader("Captured Packets")
         st.dataframe(df, use_container_width=True)
@@ -66,17 +122,15 @@ else:
     # Tab 3: Filtering
     with tab3:
         st.subheader("Filter by Protocol or IP")
-        protocol = st.selectbox("Select Protocol", ["All"] + sorted(df["protocol"].dropna().unique().tolist()))
+        protocol = st.selectbox("Select Protocol", ["All"] + sorted(df["protocol"].unique().tolist()))
         ip_filter = st.text_input("Search by IP Address")
 
         filtered_df = df.copy()
         if protocol != "All":
             filtered_df = filtered_df[filtered_df["protocol"] == protocol]
         if ip_filter:
-            filtered_df = filtered_df[
-                (filtered_df["src_ip"].str.contains(ip_filter)) |
-                (filtered_df["dst_ip"].str.contains(ip_filter))
-            ]
+            filtered_df = filtered_df[(filtered_df["src_ip"].str.contains(ip_filter)) | 
+                                      (filtered_df["dst_ip"].str.contains(ip_filter))]
 
         st.write(f"Showing {len(filtered_df)} packets")
         st.dataframe(filtered_df, use_container_width=True)
