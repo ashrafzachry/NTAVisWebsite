@@ -1,44 +1,42 @@
 # insert_packets.py
-# Inserts sample or real packet data into the database, including geolocation.
-
-import geoip2.database
 import sqlite3
 from datetime import datetime
-import pytz
 
-# Setup timezone
-tz = pytz.timezone('Asia/Kuala_Lumpur')
-timestamp = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
+# Database file
+DB_PATH = "packets.db"
 
-# Example packet data (replace with your actual data or loop)
-src_ip = "8.8.8.8"
-dst_ip = "1.1.1.1"
-protocol = 6
-length = 100
-threat_type = "Suspicious"
+# Sample packets with fake geo info
+sample_packets = [
+    ("192.168.1.2", "10.0.0.5", "TCP", 1500, "2025-11-03 12:00:00", "Normal", "Kuala Lumpur"),
+    ("192.168.1.3", "10.0.0.10", "UDP", 500, "2025-11-03 12:01:00", "Suspicious", "Singapore"),
+    ("10.0.0.5", "192.168.1.2", "TCP", 1500, "2025-11-03 12:02:00", "SYN Flood", "Bangkok"),
+    ("192.168.1.4", "10.0.0.15", "UDP", 800, "2025-11-03 12:03:00", "Malformed", "Jakarta"),
+    ("10.0.0.10", "192.168.1.3", "TCP", 1200, "2025-11-03 12:04:00", "Normal", "Manila"),
+]
 
-# Setup database connection
-conn = sqlite3.connect("packets.db")
+# Connect to SQLite and create table
+conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
-
-# Setup GeoLite2 reader
-reader = geoip2.database.Reader('GeoLite2-City.mmdb')
-
-def get_lat_lon(ip):
-    try:
-        response = reader.city(ip)
-        return response.location.latitude, response.location.longitude
-    except:
-        return None, None
-
-# Get latitude and longitude for the source IP
-latitude, longitude = get_lat_lon(src_ip)
-
-# Insert packet into database
-cursor.execute(
-    "INSERT INTO packets (timestamp, src_ip, dst_ip, protocol, length, threat_type, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    (timestamp, src_ip, dst_ip, protocol, length, threat_type, latitude, longitude)
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS packets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    src_ip TEXT,
+    dst_ip TEXT,
+    protocol TEXT,
+    size INTEGER,
+    timestamp TEXT,
+    threat_type TEXT,
+    location TEXT
 )
+""")
+conn.commit()
+
+# Insert sample data
+cursor.executemany("""
+INSERT INTO packets (src_ip, dst_ip, protocol, size, timestamp, threat_type, location)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+""", sample_packets)
 conn.commit()
 conn.close()
-reader.close()
+
+print(f"Sample database created at {DB_PATH} with {len(sample_packets)} packets.")
